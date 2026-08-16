@@ -1,0 +1,16 @@
+# Pinned for reproducible deployment (Streamlit Community Cloud / Hugging Face Spaces).
+# If the phase1_baseline.pkl fails to unpickle on first deploy, it is almost always a
+# geopandas/shapely/pandas version gap; nudge those three to match the versions that
+# created the pickle and redeploy.
+streamlit==1.40.2
+streamlit-folium==0.24.0
+folium==0.18.0
+geopandas==1.0.1
+pyogrio==0.10.0
+shapely==2.0.6
+pandas==2.2.3
+numpy==2.1.3
+openpyxl==3.1.5
+plotly==5.24.1
+pyomo==6.8.2
+highspy==1.8.1
