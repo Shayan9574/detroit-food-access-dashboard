@@ -47,6 +47,24 @@ SENS_DIR = os.path.join(OUT_DIR, "sensitivity")
 PHASE1_PKL = os.path.join(SENS_DIR, "phase1_baseline.pkl")
 BASELINE_XLSX = os.path.join(OUT_DIR, "baseline_results.xlsx")
 
+# ------------------------------------------------------------
+# Large data file (phase1_baseline.pkl, ~26 MB) is hosted on Google Drive
+# because it exceeds GitHub's 25 MB browser-upload limit. On first run the
+# app downloads it into outputs/sensitivity/ if it is not already present.
+# ------------------------------------------------------------
+PHASE1_DRIVE_ID = "1-4we2kyh-Jr1gJSCDrty2tHLbQnKbizX"
+
+def _ensure_phase1_file():
+    """Download phase1_baseline.pkl from Google Drive if it is missing."""
+    if os.path.exists(PHASE1_PKL):
+        return
+    try:
+        os.makedirs(os.path.dirname(PHASE1_PKL), exist_ok=True)
+        import gdown
+        gdown.download(id=PHASE1_DRIVE_ID, output=PHASE1_PKL, quiet=False)
+    except Exception as e:
+        print(f"[phase1] download failed: {e}")
+
 # ============================================================
 # COLOR PALETTE - Professional, conference-grade
 # ============================================================
@@ -302,6 +320,7 @@ def load_outlets():
 @st.cache_resource(show_spinner=False)
 def load_phase1():
     """Load Phase 1 optimization data once and pin in memory."""
+    _ensure_phase1_file()
     if not os.path.exists(PHASE1_PKL):
         return None
     with open(PHASE1_PKL, "rb") as f:
