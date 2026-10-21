@@ -247,21 +247,32 @@ def _new_highs(time_limit, gap, threads=None):
     return h
 
 
-def fixed_x_completion(S: Structure, p: dict, noveh: dict, x_on: np.ndarray, time_limit=30):
+def fixed_x_completion(S: Structure, p: dict, noveh: dict, x_on: np.ndarray, time_limit=180):
     """Given a set of open (j,k) columns, solve the LP over z,A,R,Q with x fixed.
-    Returns a full column vector usable as a MIP start, or None if infeasible."""
-    lp, info = build_lp(S, p, noveh, "max")
+    Returns a full column vector usable as a MIP start, or None if infeasible.
+
+    With x fixed, the capacity rows force z = 0 at closed facilities, so the
+    redundant z <= x rows are left out; this keeps the LP small and fast on
+    slow shared servers."""
+    x_on = np.asarray(x_on, dtype=float)
+    lp, info = build_lp(S, p, noveh, "max", link_rows=False)
     n_jk = info["n_jk"]
     lo = np.array(lp.col_lower_); up = np.array(lp.col_upper_)
     lo[:n_jk] = x_on; up[:n_jk] = x_on
     lp.col_lower_ = lo; lp.col_upper_ = up
     lp.integrality_ = [highspy.HighsVarType.kContinuous] * lp.num_col_
-    h = _new_highs(time_limit, 1e-4)
-    h.passModel(lp)
-    h.run()
-    if h.getModelStatus() != highspy.HighsModelStatus.kOptimal:
-        return None
-    return np.array(h.getSolution().col_value)
+    for solver in ("choose", "ipm"):
+        h = _new_highs(time_limit, 1e-4)
+        h.setOptionValue("solver", solver)
+        h.passModel(lp)
+        h.run()
+        status = h.getModelStatus()
+        if status == highspy.HighsModelStatus.kOptimal or h.getInfo().primal_solution_status == 2:
+            return np.array(h.getSolution().col_value)
+        if status == highspy.HighsModelStatus.kInfeasible:
+            return None
+        print(f"[fastmodel] fixed-x LP status {h.modelStatusToString(status)} with solver={solver}; retrying", flush=True)
+    return None
 
 
 def solve(S: Structure, p: dict, noveh: dict, time_limit=90, gap=0.02, start_x=None, threads=None, link_rows=True):

@@ -451,6 +451,8 @@ def library_hit(v: dict):
 
 
 def assemble(p, x_on, full, status, gap, bound, seconds, source):
+    if full is None:
+        raise RuntimeError("Plan evaluation failed.")
     lp, info = fm.build_lp(S, p, NOVEH, "max", link_rows=False)
     obj = float(np.dot(np.array(lp.col_cost_), full))
     z = full[info["off_z"]:info["off_z"] + info["n_a"]]
@@ -517,13 +519,17 @@ def _solve(key: str):
     if not r.get("feasible"):
         return dict(infeasible=True, status=r["status"], seconds=time.time() - t0)
     full = fm.fixed_x_completion(S, p, NOVEH, r["x_on"].astype(float))
+    if full is None:
+        return dict(infeasible=True, status="plan could not be evaluated", seconds=time.time() - t0)
     return assemble(p, r["x_on"], full, r["status"], r["gap"], r["bound"], time.time() - t0, "solved")
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_resource(show_spinner="Preparing the reference plan")
 def reference_result():
     p = params_from_state(DEFAULT_V)
     full = fm.fixed_x_completion(S, p, NOVEH, D["x_ref"])
+    if full is None:
+        raise RuntimeError("The reference plan could not be evaluated; see the server log for the HiGHS status.")
     return assemble(p, D["x_ref"], full, "Reference", 0.00499, None, 0.0, "reference")
 
 
@@ -721,7 +727,12 @@ def optimizer():
         if msg:
             note(*msg)
         if key is None:
-            res = reference_result(); res = dict(res); res["nv"] = 0.25
+            try:
+                res = dict(reference_result())
+            except Exception as e:  # show a readable message instead of a crash
+                note(f"The reference plan could not be loaded on this server ({e}). Press Run optimization to compute a plan.", "bad")
+                return
+            res["nv"] = 0.25
             head = ("Reference plan: the paper's baseline portfolio at $40M (full coverage, walking equity in car-light "
                     "ZIP codes, solved offline to a 0.5 percent optimality gap). Change the settings and press "
                     "<b>Run optimization</b> to compute a new plan.")
@@ -779,7 +790,10 @@ def optimizer():
                     '<span>Need Index<span class="ramp"></span></span>')
             st.markdown(f'<div class="legend">{leg}</div>', unsafe_allow_html=True)
         with cc:
-            ref = result_tables(dict(reference_result(), nv=0.25))[1]
+            try:
+                ref = result_tables(dict(reference_result(), nv=0.25))[1]
+            except Exception:
+                ref = comp.assign(n=0)
             fig = go.Figure()
             fig.add_trace(go.Bar(y=[T.TYPE_NAME[k] for k in T.TYPES], x=ref["n"], orientation="h", name="Reference plan",
                                  marker_color="rgba(29,43,54,0.12)", hovertemplate="Reference: %{x}<extra></extra>"))
