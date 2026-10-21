@@ -1,29 +1,17 @@
 # Detroit Food Access Optimization Dashboard
 
 Interactive companion to the paper *A Spatial Optimization Framework for Equitable
-Healthy Food Access Investment: Application to Detroit*. The app has four tabs:
-a food access explorer, a live optimization model, a precomputed sensitivity
-analysis, and documentation.
+Healthy Food Access Investment: Application to Detroit*. Live app:
+https://detroit-food-access-dashboard-gurx9yq65mt7ewrbk3qypx.streamlit.app
 
-This folder is a self contained, deploy ready repository. Every data file the app
-reads sits alongside `app.py`, so no Google Drive or Colab is required.
+The app has four tabs:
 
-## What is here
-
-```
-app.py                                  application entry point
-requirements.txt                        pinned Python dependencies
-packages.txt                            system packages (intentionally empty)
-.streamlit/config.toml                  server/theme settings
-zip_codes.shp/.shx/.dbf/.prj/.cpg/.xml  ZIP boundary shapefile
-final_detroit_food_health_dataset.xlsx  core ZIP dataset
-need_index_by_zip.xlsx                  Need Index by ZIP
-<seven>_Zip Code.xlsx                   the seven outlet layers
-outputs/baseline_results.xlsx           precomputed baseline portfolio
-outputs/sensitivity/phase1_baseline.pkl prebuilt model instance (~26 MB)
-```
-
-Total size is about 28 MB, which fits the free tier of both hosts below.
+- **Food access explorer**: the existing food environment (seven outlet categories),
+  ZIP-level need and health indicators, and a profile for any ZIP code.
+- **Optimization model**: runs the paper's mixed-integer linear program with your
+  settings and returns the plan on a map, by type and by ZIP code, with CSV and PDF downloads.
+- **Sensitivity analysis**: the 71 precomputed solves (ten one-at-a-time sweeps).
+- **About**: method, data sources, funding and citation.
 
 ## Run locally
 
@@ -32,51 +20,64 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Then open the URL Streamlit prints (default http://localhost:8501).
+## Deploy (Streamlit Community Cloud)
 
-## Deploy so journal readers can use it (Streamlit Community Cloud, free)
+Push this folder to GitHub, then create the app at https://share.streamlit.io with
+`app.py` as the main file. Every file the app needs is in the repository (about 5 MB),
+so no Google Drive download is required.
 
-1. Create a new GitHub repository and push the entire contents of this folder to it.
-   Keep the folder structure exactly as is; `outputs/sensitivity/phase1_baseline.pkl`
-   must stay at that path.
-2. Go to https://share.streamlit.io, sign in with GitHub, and click "New app."
-3. Select your repository, branch `main`, and main file path `app.py`.
-4. Click "Deploy." The first build takes several minutes while it installs geopandas.
-5. You will get a permanent public URL of the form
-   `https://<your-app>.streamlit.app`. Put that URL in the paper.
+## Repository layout
 
-### Alternative: Hugging Face Spaces
-Create a new Space, choose the "Streamlit" SDK, and upload these files (or link the
-GitHub repo). Same result, a public URL.
+```
+app.py                     the application
+app_theme.py               colors, fonts, chart template and page styles
+fastmodel.py               the optimization model built directly in HiGHS
+sens_data.py               precomputed results of the first nine sensitivity sweeps
+data/                      compact runtime data (built by tools/prepare_data.py)
+outputs/baseline_results.xlsx            the paper's baseline portfolio ($40M, 295 interventions)
+outputs/sensitivity/sweep11_impact.xlsx  impact-coefficient sweep (12 solves)
+outputs/precomputed/       minimum-cost feasible plans and the scenario library
+tools/prepare_data.py      rebuilds data/ from the source files and the Phase 1 pickle
+tools/precompute.py        rebuilds outputs/precomputed/
+*.xlsx, zip_codes.*        original source data
+```
 
-## Make the link permanent for the paper (recommended)
+## How the app stays fast
 
-A free host can sleep or change. Archive the exact code and data on Zenodo to get a
-DOI that never breaks:
+- Each tab is a Streamlit fragment, and each control panel is a form. Nothing reruns
+  until **Apply changes** or **Run optimization** is pressed, and then only that tab reruns.
+- Data are read once from small binary files and kept in memory.
+- Maps are drawn with deck.gl (pydeck), which renders thousands of points on the GPU.
+- The model is built directly as a sparse HiGHS model in a fraction of a second.
+  The redundant linking constraint z ≤ x is omitted because the capacity constraint
+  implies it when populations are positive; the set of feasible plans is unchanged.
+- Every solve starts from a feasible plan: a precomputed solution, the reference plan or
+  a minimum-cost plan, extended greedily to use the remaining budget.
+- Common scenarios (budgets from $40M to $100M at no-vehicle cutoffs of 25, 30, 35 and
+  40 percent, other settings at baseline) load instantly from a precomputed library.
+  Any setting that has been run before also returns instantly.
 
-1. Sign in to https://zenodo.org with your GitHub account and enable the repository
-   under Settings, then create a GitHub Release. Zenodo mints a DOI for that release.
-2. Cite both in the paper: the live URL for interactive use and the Zenodo DOI as the
-   permanent archive.
+## Feasible settings only
 
-## Notes on the live optimization tab
+The budget slider starts at $38M and cannot go below the smallest budget for which a feasible plan is
+known under the applied settings. That minimum comes from precomputed minimum-cost
+portfolios (one for each set of walking-equity ZIP codes and coverage target),
+repriced at the chosen costs. If a change to the costs, coverage target or cutoff
+raises the minimum, the budget is lifted to it automatically. Costs and impact
+coefficients are limited to the ranges tested in the sensitivity analysis.
 
-The optimization tab solves a real MILP with HiGHS. A full city scale solve can take
-several minutes and a large amount of memory, which is close to the ceiling of a free
-host. The app already imposes a solver time limit and reports the achieved gap, so it
-degrades gracefully, but for a public deployment keep the interactive time limit short
-and the optimality gap relaxed. The definitive results in the paper come from an
-offline solve at the full 0.5 percent gap; the app states this.
+## Rebuilding the data
 
-To disable live solving entirely on the public deployment (serving only the
-precomputed baseline), replace the body of `solve_optimization(...)` in `app.py` with
-an immediate `return None, "live-solving-disabled", 0.0`, or gate the solve button
-behind a flag. The explorer, the precomputed baseline map, and the sensitivity tab all
-work without any solving.
+```
+pip install geopandas pyogrio shapely
+python tools/prepare_data.py path/to/phase1_baseline.pkl
+python tools/precompute.py floors  path/to/phase1_baseline.pkl outputs/precomputed
+python tools/precompute.py library path/to/phase1_baseline.pkl outputs/precomputed outputs/baseline_results.xlsx
+```
 
-## Reproducibility note for reviewers
+## Funding
 
-The model instance in `outputs/sensitivity/phase1_baseline.pkl` was built for Detroit's
-32 ZIP codes (419 candidate sites, 2,706 demand subpoints). The baseline reference
-median household income stored in the instance is $36,931.5; see the manuscript for the
-value used in the reported cost calibration.
+This study was partially funded by the ACHIEVE GreatER grant (National Institute on
+Minority Health and Health Disparities, award 1P50MD017351-01) through the
+NIMHD/Health Equity Action Network to support research on optimizing food access and
+advancing cardiovascular health equity in Detroit.
