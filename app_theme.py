@@ -131,6 +131,8 @@ p, li {{ color: {INK}; }}
 .muted {{ color: {SLATE}; font-size: 0.85rem; }}
 .kv {{ display:flex; justify-content:space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid #EEF2F0; font-size: 0.92rem; }}
 .kv:last-child {{ border-bottom: none; }}
+.kv.hv span small {{ display: block; color: {SLATE}; font-size: 0.74rem; line-height: 1.3; margin-top: 1px; }}
+.kv.hv b {{ white-space: nowrap; }}
 .kv b {{ font-weight: 700; }}
 .rankbar {{ height: 6px; background: #EEF2F0; border-radius: 3px; margin-top: 4px; overflow: hidden; }}
 .rankbar span {{ display:block; height: 100%; background: {OCHRE}; }}

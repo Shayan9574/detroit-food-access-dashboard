@@ -207,10 +207,49 @@ SHADE_OPTIONS = {
     "Need Index": ("NeedIndex_0_100", "{:.0f}"),
     "Households without a vehicle": ("NoVehicleRate", "{:.0%}"),
     "Poverty rate": ("PovertyRate", "{:.0%}"),
+    "Coronary heart disease": ("Coronary Heart Disease", "{:.1f}%"),
+    "Stroke": ("Stroke", "{:.1f}%"),
     "Diagnosed diabetes": ("Diabetes", "{:.1f}%"),
+    "Obesity": ("Obesity", "{:.1f}%"),
+    "High cholesterol": ("High Cholesterol", "{:.1f}%"),
+    "Blood pressure medication use": ("Hypertension Medication", "{:.1f}%"),
     "Residents beyond a 10-minute walk of a grocery": ("share_far", "{:.0%}"),
     "No shading": (None, ""),
 }
+
+
+# Cardiometabolic indicators shown on the landing tab: (column, label, unit, role in the model)
+HEALTH = [
+    ("Coronary Heart Disease", "Coronary heart disease", "%", "Health coefficient and Need Index"),
+    ("Stroke", "Stroke", "%", "Health coefficient and Need Index"),
+    ("Diabetes", "Diagnosed diabetes", "%", "Health coefficient and Need Index"),
+    ("Obesity", "Obesity", "%", "Need Index"),
+    ("High Cholesterol", "High cholesterol", "%", "Appendix A regressions"),
+    ("Hypertension Medication", "Taking blood pressure medication", "%",
+     "Adults with high blood pressure; Appendix A regressions"),
+    ("Systolic Blood Pressure", "Median systolic blood pressure", " mmHg", "Context only, not used in the model"),
+    ("Diastolic Blood Pressure", "Median diastolic blood pressure", " mmHg", "Context only, not used in the model"),
+]
+
+
+def health_rows(P, zip_row=None):
+    """HTML rows for the cardiometabolic block. Citywide: population-weighted average and range
+    across the 32 ZIP codes. One ZIP: its value and the citywide average for comparison."""
+    w = P["Population"].astype(float)
+    out = []
+    for col, label, unit, role in HEALTH:
+        s = P[col].astype(float)
+        avg = float((s * w).sum() / w.sum())
+        dec = 0 if "mmHg" in unit else 1
+        fmt = lambda v, dec=dec, unit=unit: f"{v:.{dec}f}{unit}"
+        if zip_row is None:
+            val = fmt(avg)
+            sub = f"Range {fmt(s.min())} to {fmt(s.max())} across ZIP codes. {role}."
+        else:
+            val = fmt(float(zip_row[col]))
+            sub = f"Detroit average {fmt(avg)}. {role}."
+        out.append(f'<div class="kv hv"><span>{label}<small>{sub}</small></span><b>{val}</b></div>')
+    return "".join(out)
 
 
 @st.cache_data(show_spinner=False)
@@ -302,11 +341,13 @@ def explorer():
                 <div class="kv"><span>Residents in the 32 ZIP codes</span><b>{int(P.Population.sum()):,}</b></div>
                 <div class="kv"><span>Full-service grocery stores</span><b>64</b></div>
                 <div class="kv"><span>Farmers markets</span><b>31</b></div>
-                <div class="kv"><span>Median diabetes prevalence</span><b>{P.Diabetes.median():.1f}%</b></div>
-                <div class="kv"><span>Median obesity prevalence</span><b>{P.Obesity.median():.1f}%</b></div>
                 <div class="kv"><span>Outlets in this view</span><b>{len(pts):,}</b></div>
+                <h4 style="margin-top:14px">Cardiometabolic health</h4>
+                <div class="muted">Share of adults, averaged over the 32 ZIP codes and weighted by population.</div>
+                {health_rows(P)}
                 <h4 style="margin-top:14px">Highest Need Index</h4>{rows}
-                <div class="muted" style="margin-top:8px">ZIP populations are for full ZIP code tabulation areas,
+                <div class="muted" style="margin-top:8px">Prevalence estimates are from CDC PLACES (2024 release),
+                retrieved through the PHOENIX platform. ZIP populations are for full ZIP code tabulation areas,
                 some of which extend beyond the city limits.</div></div>'''),
                 unsafe_allow_html=True)
         else:
@@ -321,12 +362,12 @@ def explorer():
                 <div class="kv"><span>Households without a vehicle</span><b>{r.NoVehicleRate:.1%}</b></div>
                 <div class="kv"><span>Poverty rate</span><b>{r.PovertyRate:.1%}</b></div>
                 <div class="kv"><span>Median household income</span><b>${r.MedianIncome:,.0f}</b></div>
-                <div class="kv"><span>Diagnosed diabetes</span><b>{r.Diabetes:.1f}%</b></div>
-                <div class="kv"><span>Coronary heart disease</span><b>{r["Coronary Heart Disease"]:.1f}%</b></div>
                 <div class="kv"><span>Healthful outlets</span><b>{int(r.healthy_count)}</b></div>
                 <div class="kv"><span>Less healthful outlets</span><b>{int(r.unhealthy_count)}</b></div>
                 <div class="kv"><span>Residents beyond a 10-minute walk of a grocery</span><b>{r.share_far:.0%}</b></div>
                 <div class="kv"><span>Walking-equity ZIP (above 25%)</span><b>{"Yes" if r.NoVehicleRate > 0.25 else "No"}</b></div>
+                <h4 style="margin-top:14px">Cardiometabolic health</h4>
+                {health_rows(P, r)}
                 </div>'''), unsafe_allow_html=True)
 
     # ---------------- charts

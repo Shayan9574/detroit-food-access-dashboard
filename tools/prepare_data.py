@@ -126,6 +126,7 @@ def main(pkl):
     prof = d.merge(n[["ZIP", "NeedIndex_0_100", "NeedRank"]], on="ZIP", how="left")
     keep = ["ZIP", "Population", "MedianIncome", "PovertyRate", "NoVehicleRate", "Black_pct",
             "Diabetes", "Obesity", "Coronary Heart Disease", "Stroke", "High Cholesterol",
+            "Hypertension Medication", "Systolic Blood Pressure", "Diastolic Blood Pressure",
             "healthy_count", "unhealthy_count", "healthy_per_10k", "unhealthy_per_10k",
             "FoodAccessScore", "NeedIndex_0_100", "NeedRank"]
     prof[keep].to_csv(os.path.join(out, "zip_profile.csv"), index=False)
